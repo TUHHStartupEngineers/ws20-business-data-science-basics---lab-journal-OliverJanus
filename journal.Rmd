@@ -174,7 +174,7 @@ I decided to use Spotify to get the data for several top 50 charts around the wo
 \
 
 For this challenge the following libraries are needed (spotifyr tecnically isn't needed but makes fetching the token easier)
-``` {r}
+```{r}
 library(httr)
 library(tidyverse)
 library(spotifyr)
@@ -289,3 +289,107 @@ chart_comp_tbl <- all_charts_tbl %>%
   select(Philippines, Brazil, Germany, Indonesia)
 chart_comp_tbl %>% print(n = 10)
 ```
+\
+
+## Challenge 2
+\
+
+Goal: Scrape one of the competitor websites of canyon and create a small database.
+
+\
+
+I chose Radon for this challenge.
+
+\
+
+For this challenge the following libraries are needed
+```{r}
+library(tidyverse)
+library(rvest)
+library(glue)
+library(stringr)
+```
+\
+
+As a first step, I fetched the all available category-links and stored them in a tibble together with the respective family and category
+
+\
+```{r}
+home_url <- "https://www.radon-bikes.de"
+html <- home_url %>% 
+  read_html()
+
+# fetch the links to all the availabe categories and store it in a tibble with family and category
+category_url_tbl <- html %>%
+  html_nodes(css = ".megamenu__item > a") %>%
+  html_attr('href') %>%
+  discard(.p = ~stringr::str_detect(.x,"wear")) %>%
+  enframe(name = "position", value = "category_path") %>%
+  mutate(category_url = glue(home_url, "{category_path}bikegrid/")) %>% # add "/bikegrid/" to category-url to display all models
+  mutate(category_path = str_remove_all(.$category_path,"(?<!.)/|/(?!.)")) %>%
+  separate(col = category_path, into = c("family","category"), sep = "/") %>%
+  print(n = 10)
+```
+\
+
+Next, I fetched all bike-urls from each category-site and stored them in a tibble.
+
+\
+```{r}
+# fetch the links to all available bikes and store it in a tibble with respective family, category and category-url
+bike_url_tbl <- category_url_tbl$category_url %>%
+  map(read_html) %>%
+  map(html_nodes, css = ".m-bikegrid__grid > div a") %>%
+  map(html_attr, 'href') %>%
+  map(discard, .p = ~stringr::str_detect(.x,"frame")) %>%
+  map(enframe, name = "position", value = "bike_path") %>%
+  enframe(name = "position", value = "category_tbl") %>%
+  right_join(category_url_tbl, by = "position") %>%
+  select(-c("position")) %>%
+  unnest(cols = c("category_tbl")) %>%
+  select(-c("position")) %>%
+  distinct() %>%
+  mutate(bike_url = map(.$bike_path, ~str_glue(home_url, "{.}")))%>%
+  print(n = 10)
+```
+\
+
+Now that I have all the bike-urls, I can start extracting specific information for each bike. I created two lists to hold some of the information: one just for the prices and the other for family, category, series and name info. The latter list contains a bunch of vectors, holding the wanted information.
+
+\
+```{r}
+bike_info_lst <- bike_url_tbl$bike_url %>%
+  map(read_html) %>%
+  map(html_nodes, css = ".m-bikedetail__breadcrumb > ul > li > span > a") %>%
+  map(html_text)
+
+bike_price_lst <- bike_url_tbl$bike_url %>%
+  map(read_html) %>%
+  map(html_nodes, css = ".m-bikedetail__price--active") %>%
+  map(html_text) %>%
+  map(str_extract, "[0-9]+") %>%
+  map(na.omit) %>%
+  map(~str_glue("{.} €"))
+```
+\
+
+Finally, I merged everything into one tibble. Since the bike_info list contained a bunch of vectors, holding the wanted information, the respective column in the tibble does as well. I formated and separated it into new columns.
+
+\
+```{r}
+bike_info_tbl <- tibble(Info = bike_info_lst, Price = bike_price_lst, Url = bike_url_tbl$bike_url) %>%
+  mutate(Info_str = map(.$Info, toString) %>% str_remove_all("[\"c()]")) %>%
+  separate(col = Info_str, into = c("Family", "Category", "Series", "Name"), sep = ", ") %>%
+  select(Name, Price, Series, Category, Family, Url) %>%
+  print(n = 10)
+```
+\
+
+And there we have it! A Radon database with all its available bike models!
+
+
+
+
+
+
+

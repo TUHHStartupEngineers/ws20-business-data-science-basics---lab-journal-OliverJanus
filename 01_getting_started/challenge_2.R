@@ -14,10 +14,11 @@ header <- c('Authorization' = paste("'Bearer ", access_token, "'"),
             'Accept' = 'application/json')
 base_url <- "https://api.spotify.com"
 
+
 # a function to extract data of a top 50 playlist from a given link
 scrap_charts_data <- function(playlist_url){
   # print(playlist_url)
-  charts_json <- httr::GET(url = playlist_url, add_headers(header)) %>%
+  charts_json <- GET(url = playlist_url, add_headers(header)) %>%
     content(as = "parsed")
     
   charts_tbl <- tibble()
