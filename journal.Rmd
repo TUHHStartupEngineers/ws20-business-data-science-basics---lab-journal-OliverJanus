@@ -1,5 +1,5 @@
 ---
-title: "Journal (reproducible report)"
+title: "Journal"
 author: "Oliver Janus"
 date: "2020-11-28"
 output:
@@ -16,39 +16,276 @@ output:
 knitr::opts_chunk$set(message=FALSE,warning=FALSE, cache=TRUE)
 ```
 
-**IMPORTANT:** You can delete everything in here and start fresh. You might want to start by not deleting anything above this line until you know what that stuff is doing.
-
-This is an `.Rmd` file. It is plain text with special features. Any time you write just like this, it will be compiled to normal text in the website. If you put a \# in front of your text, it will create a top level-header.
-
-# My first post
-
 Last compiled: `r Sys.Date()`
 
-Notice that whatever you define as a top level header, automatically gets put into the table of contents bar on the left. 
+# Intro to the tidyverse
+\
 
-## Second level header
+## Challenge
+\
 
-You can add more headers by adding more hashtags. These won't be put into the table of contents
+Goal: Analyze the sales by location (state) with a bar plot, then analyze the sales by location and year (facet_wrap).
 
-### third level header
+\
 
-Here's an even lower level header
+For this challenge the following libraries are needed
 
-# My second post (note the order)
+\
+``` {r}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(readr)
+```  
+\
 
-Last compiled: `r Sys.Date()`
+First, the dataset is read from an .rds file. In order to be able to analyze the data with regard to states, the "location" column is split into two separate columns "city"and "state". Also, the year is extracted from each date.
 
-I'm writing this tutorial going from the top down. And, this is how it will be printed. So, notice the second post is second in the list. If you want your most recent post to be at the top, then make a new post starting at the top. If you want the oldest first, do, then keep adding to the bottom
+\
+``` {r}
+bike_orderlines_wrangled_tbl_old <- read_rds("00_data/01_bike_sales/02_wrangled_data/bike_orderlines.rds") # read wrangled dataset from .rds file
 
-# Adding R stuff
 
-So far this is just a blog where you can write in plain text and serve your writing to a webpage. One of the main purposes of this lab journal is to record your progress learning R. The reason I am asking you to use this process is because you can both make a website, and a lab journal, and learn R all in R-studio. This makes everything really convenient and in the same place. 
+bike_orderlines_wrangled_tbl <- bike_orderlines_wrangled_tbl_old %>% 
+  separate(col = "location", into = c("city", "state"), sep = ", ") %>% # separate location into city and state
+  mutate(year = year(order_date)) # extract the year from date
+```  
+\
 
-So, let's say you are learning how to make a histogram in R. For example, maybe you want to sample 100 numbers from a normal distribution with mean = 0, and standard deviation = 1, and then you want to plot a histogram. You can do this right here by using an r code block, like this:
+Now, that the data is wrangled, we can start to analyze it.
+
+\
+
+
+### Revenue by state
+\
+
+We select only the state and total price from our table, as we won't need the other features for now. Then the data is grouped by states and summarised to get the revenue by state. Additionally, the acquired new table is sorted by descending revenue, to get a better overview of each states performance.
+
+\
+```{r}
+sales_by_state_tbl <- bike_orderlines_wrangled_tbl %>%
+  select(state, total_price) %>% # only use required columns
+  group_by(state) %>%
+  summarise(sales = sum(total_price)) %>% # show sales per state
+  ungroup() %>%
+  mutate(sales_text = scales::dollar(sales, big.mark = ".", 
+                                     decimal.mark = ",", 
+                                     prefix = "", 
+                                     suffix = " €")) %>%
+  arrange(desc(sales)) # sort by descending revenue
+sales_by_state_tbl %>% select(state, sales_text)
+```  
+\
+
+As we can see, North Rhine-Westphalia has the highest and Saxony-Anhalt the lowest revenue of all states.
+
+\
+
+Finally, we visualize the results through a bar plot.
+
+\
+```{r, fig.width=10, fig.height=7}
+sales_by_state_tbl %>% ggplot(mapping = aes(x = reorder(state, -sales), y = sales)) + 
+  geom_bar(stat="identity", fill = "#2DC6D6") + 
+  geom_label(aes(label = sales_text), size = 2.5) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + # format x-axis labels
+  scale_y_continuous(labels = scales::dollar_format(big.mark = ".", 
+                                                    decimal.mark = ",", 
+                                                    prefix = "", 
+                                                    suffix = " €")) +
+  labs(
+    title = "Revenue by state",
+    subtitle = "North Rhine-Westphalia is leading the market",
+    x = "",
+    y = "Revenue"
+  )
+```
+\
+
+It now becomes obvious, that North Rhine-Westphalia is leading in revenue by quite a lot, as it has double the amount as the second highest revenue state, Bremen.
+
+\
+
+
+### Revenue by state and year
+\
+
+This time we are not only interested in the revenue per state, but also in the the revenue progression over the years respectively.
+
+\
+
+The first step is virtually the same as before. The only difference being, that we group by state and year this time. We sort by year and then revenue, to get a better overview.
+
+\
+```{r}
+sales_by_state_and_year_tbl <- bike_orderlines_wrangled_tbl %>%
+  select(state, year, total_price) %>% # only use required columns
+  group_by(state, year) %>%
+  summarise(sales = sum(total_price)) %>% # show sales per state per year
+  ungroup() %>%
+  mutate(sales_text = scales::dollar(sales, big.mark = ".", 
+                                     decimal.mark = ",", 
+                                     prefix = "", 
+                                     suffix = " €")) %>%
+  arrange(year, desc(sales)) # sort by year, then descending revenue
+sales_by_state_and_year_tbl %>% select(state, sales_text, year)
+```
+\
+
+This time the table itself isn't as clear as before. A facet plot will be handy to visualize the revenue progression over the years for each state.
+
+\
+```{r, fig.width=10, fig.height=7}
+sales_by_state_and_year_tbl %>% ggplot(mapping = aes(x = year, y = sales, fill = state)) + 
+  geom_col() + 
+  facet_wrap(~ state) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), strip.text = element_text(size = 7)) + 
+  scale_y_continuous(labels = scales::dollar_format(big.mark = ".",
+                                                    decimal.mark = ",",
+                                                    prefix = "",
+                                                    suffix = " €")) +
+  labs(
+    title = "Revenue by state and year",
+    x = "",
+    y = "Revenue",
+    fill = "state legend"
+  )
+```
+\
+
+Again, North Rhine-Westphalia is the best performing state. Its worst sales numbers from 2016 is still higher than any other states revenue in any year. Hamburg, Bremen, Bavaria and North Rhine-Westphalia show a mostly steady revenue increase with varying degrees. Berlin and Schleswig-Holstein both had a small peak in 2017, but steadily decreased since then. The remaining states all show little to no significant change over the years.
+
+\
+
+
+# Data Aquisition
+\
+
+## Challenge 1
+\
+
+Goal: Get some data via an API
+
+\
+
+I decided to use Spotify to get the data for several top 50 charts around the world.
+
+\
+
+For this challenge the following libraries are needed (spotifyr tecnically isn't needed but makes fetching the token easier)
+``` {r}
+library(httr)
+library(tidyverse)
+library(spotifyr)
+library(jsonlite)
+library(purrr)
+library(stringr)
+library(dplyr)
+```  
+\
+
+In order to access most apis, a access token is needed. Spotify is no exception here. The header object contains the token and needs to be sent with each api request.
+
+\
+```{r}
+# get access token and create header for api requests
+access_token <- get_spotify_access_token(client_id = Sys.getenv("SPOTIFY_CLIENT_ID"),
+                                         client_secret = Sys.getenv("SPOTIFY_CLIENT_SECRET"))
+header <- c('Authorization' = paste("'Bearer ", access_token, "'"), 
+            'Content-Type' = 'application/json', 
+            'Accept' = 'application/json')
+base_url <- "https://api.spotify.com"
+```
+\
+
+For a given playlist-url, I wanted to extract name, artist, album, track-id, track-url and the track-api-url and store it all in a tibble. I do this by sending an api-request to the server and reading the information from the recived .json. 
+In order to iterate over several playlists I created a function which returns a tibble for this. It works for any playlist, with the exception of the "position" column, which I didn't bother with to assign a dynamic length.
+
+\
+```{r}
+# a function to extract data of a top 50 playlist from a given link
+scrap_charts_data <- function(playlist_url){
+  charts_json <- httr::GET(url = playlist_url, add_headers(header)) %>%
+    content(as = "parsed")
+    
+  charts_tbl <- tibble()
+  for(track in charts_json$tracks$items){
+    name <- track$track$name
+    artist <- track$track$artist[[1]]$name
+    album <- track$track$album$name
+    id <- track$track$id
+    track_url <- paste("https://open.spotify.com/track/", id, sep = "")
+    api_url <- track$track$href
+    song <- tibble(name = name, 
+                   artist = artist, 
+                   album = album, 
+                   id = id, 
+                   track_url = track_url, 
+                   api_track_url = api_url)
+    charts_tbl <- bind_rows(charts_tbl, song)
+  }
+  charts_tbl <- charts_tbl %>%
+    mutate(position = 1:50) %>% # only for top 50 playlists
+    select(position, name, artist, album, id, track_url, api_track_url)
+  return(charts_tbl)
+}
+```
+\
+
+To get top 50 charts from a variety of countries, I sent a search api-request, searching for "top 50" and setting the number of returned results to its max, which is 50 for a single api-call.
+
+\
 
 ```{r}
-samples <- rnorm(100, mean=0, sd=1)
-hist(samples)
+# search for top 50 playlists 
+search_url <- paste(base_url, "/v1/search?q=top+50&type=playlist&limit=50",sep = "")
+response_json <- httr::GET(url = search_url, add_headers(header)) %>%
+  content(as = "parsed")
 ```
+\
 
-When you knit this R Markdown document, you will see that the histogram is printed to the page, along with the R code. This document can be set up to hide the R code in the webpage, just delete the comment (hashtag) from the cold folding option in the yaml header up top. For purposes of letting yourself see the code, and me see the code, best to keep it the way that it is. You'll learn that all of these things and more can be customized in each R code block.
+Next I filtered out all search results, which didn't contain " 50" in the name or weren't from the official "spotifycharts" account, which published all top 50 playlists. Eventhough there actually is an api-call to fetch all playlists from a user, it doesn't work on this specific account. Hence I had to search and filter manually.
+
+\
+```{r}
+# extract names and api-links to the offiial playlists
+playlist_tbl <- tibble(playlist_name = character(), api_playlist_url = character())
+for(playlist in response_json$playlists$items){
+  if(playlist$owner$display_name == 'spotifycharts' && str_detect(playlist$name, " 50")){
+    playlist_tbl <- add_row(playlist_tbl, 
+                            playlist_name = playlist$name, 
+                            api_playlist_url = playlist$href)
+  }
+}
+playlist_tbl %>% head(n = 10)
+```
+\
+
+Next I iterated my above defined function over all filtered playlists, added a country column to each and combined them all into one tibble. I chose not to show the api-urls, as they are rather uninteresting unless you want to use the api.
+
+\
+```{r}
+# get information for all playlists and combine them into one tibble
+all_charts_tbl <- playlist_tbl %>%
+  mutate(country = map(.$playlist_name, str_remove," Top 50")) %>%
+  mutate(playlist_info = map(.$api_playlist_url, scrap_charts_data)) %>%
+  bind_rows() %>%
+  unnest(cols = playlist_info) %>%
+  select(playlist_name, position, name, artist, album, country, track_url)
+all_charts_tbl %>% head(n = 10)
+```
+\
+
+Finally, I created a comparison tibble country columns, where all songs with the same rank are shown in one row. I selected only 4 of the 26 countries, since it wouldn't fit on the screen otherwise. It still is badly formated as a print output, but it is good enough to get a glimpse of the content.
+
+\
+```{r}
+# create comparison tibble for all top 50 chart songs
+chart_comp_tbl <- all_charts_tbl %>%
+  pivot_wider(names_from = country, values_from = name) %>%
+  group_by(position) %>%
+  summarise_all(~first(na.omit(.))) %>%
+  select(Philippines, Brazil, Germany, Indonesia)
+chart_comp_tbl %>% print(n = 10)
+```
