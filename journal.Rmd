@@ -162,7 +162,7 @@ Again, North Rhine-Westphalia is the best performing state. Its worst sales numb
 # Data Aquisition
 \
 
-## Challenge 1
+## Challenge
 \
 
 Goal: Get some data via an API
@@ -291,7 +291,7 @@ chart_comp_tbl %>% print(n = 10)
 ```
 \
 
-## Challenge 2
+## Challenge
 \
 
 Goal: Scrape one of the competitor websites of canyon and create a small database.
@@ -577,3 +577,115 @@ readRDS(glue("{path}data/tech_innovation.RDS"))
 The most innovative tech sector is the one with the main-class-id of 257, which corresponds to the "Active solid-state devices" sector.
 
 \
+
+# Data Visualization
+\
+
+For both challenges the following libraries are needed
+
+\
+```{r}
+library(tidyverse)
+library(data.table)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+```
+\
+
+## Challenge
+\
+
+
+Goal: Map the time course of the cumulative Covid-19 cases.
+
+\
+
+First, I read in the data set and format it to a data.table. Then I selected only the relevant columns, ordered by month then day, grouped by countries added a column for the respective cumulative cases. Then I separated the countries column into multiple columns for each country, selected only the relevant countries and the date and omitted all na values.
+
+\
+```{r}
+covid_data_dt <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv") %>% as.data.table()
+
+covid_data_cum_dt <- covid_data_dt[, .(dateRep, day, month, countriesAndTerritories, cases)][
+  order(month, day)][
+    , cumCases := cumsum(cases), by = "countriesAndTerritories"][
+      , .(dateRep, countriesAndTerritories, cumCases)] %>% 
+  pivot_wider(names_from = countriesAndTerritories, values_from = cumCases) %>%
+  .[, c("dateRep", "Germany", "Spain", "United_Kingdom", "United_States_of_America", "France")] %>% 
+  na.omit()
+```
+\
+
+I'm set to plot now! I use the date as the x-axis and the cumulative cases as the y-axis. Each line represents a different country.
+
+\
+```{r}
+ylab <- c(2.5, 5.0, 7.5, 10, 12.5, 15)
+covid_data_cum_dt %>%
+  ggplot(aes(x = as.Date(dateRep, format="%d/%m/%Y"))) +
+  geom_line(aes(y = Germany, color = "Germany"), size = 0.5, linetype = 1) +
+  geom_line(aes(y = France, color = "France"), size = 0.5, linetype = 1) +
+  geom_line(aes(y = United_Kingdom, color = "UK"), size = 0.5, linetype = 1)  +
+  geom_line(aes(y = Spain, color = "Spain"), size = 0.5, linetype = 1) +
+  geom_line(aes(y = United_States_of_America, color = "USA"), size = 0.5, linetype = 1) +
+  scale_y_continuous(labels = paste0(ylab, "M"),
+                     breaks = 10^6 * ylab) +
+  scale_x_date(date_breaks = "1 month", 
+             labels=date_format("%B"),
+             limits = as.Date(c('2020-01-01','2020-12-31'))) + 
+  theme(
+    axis.text = element_text(color = 'white', size = 7.5),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.title = element_text(size = 15),
+    legend.position = "bottom",
+    legend.background = element_rect(fill = "grey10"),
+    legend.text = element_text(color = 'white'),
+    legend.key.size = unit(2, "line"),
+    legend.key = element_rect(fill = "grey10"),
+    panel.background = element_rect(fill = 'grey10'),
+    panel.grid.major = element_line(color = 'grey20', size = 0.5),
+    panel.grid.minor = element_line(color = 'grey30', size = 0.5), 
+    plot.background = element_rect(fill = 'grey10'),
+    title = element_text(colour = 'white', size = 9)) +
+  labs(title    = "COVID-19 confirmed cases worldwide",
+       subtitle = "As of 06/12/2020 USA is the leading country in cumulated cases",
+       x = "Year 2020",
+       y = "Cumulative Cases",
+       color = "")
+```
+\
+
+## Challenge
+
+\
+```{r}
+
+```
+\
+
+
+
+\
+```{r}
+
+```
+\
+
+
+
+\
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
