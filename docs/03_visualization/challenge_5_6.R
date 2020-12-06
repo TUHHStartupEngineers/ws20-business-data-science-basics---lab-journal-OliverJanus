@@ -1,10 +1,18 @@
 library(tidyverse)
 library(data.table)
-library(tidyverse)
 library(ggplot2)
 library(scales)
+library(maps)
 
-covid_data_dt <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv") %>% as.data.table()
+covid_data_tbl <- read_csv("https://opendata.ecdc.europa.eu/covid19/casedistribution/csv") %>% 
+  mutate(across(countriesAndTerritories, str_replace_all, "_", " ")) %>%
+  mutate(countriesAndTerritories = case_when(
+    countriesAndTerritories == "United Kingdom" ~ "UK",
+    countriesAndTerritories == "United States of America" ~ "USA",
+    countriesAndTerritories == "Czechia" ~ "Czech Republic",
+    TRUE ~ countriesAndTerritories))
+
+covid_data_dt <- covid_data_tbl %>% as.data.table()
 
 # Challenge 5 ----
 
@@ -13,7 +21,7 @@ covid_data_cum_dt <- covid_data_dt[, .(dateRep, day, month, countriesAndTerritor
     , cumCases := cumsum(cases), by = "countriesAndTerritories"][
       , .(dateRep, countriesAndTerritories, cumCases)] %>% 
   pivot_wider(names_from = countriesAndTerritories, values_from = cumCases) %>%
-  .[, c("dateRep", "Germany", "Spain", "United_Kingdom", "United_States_of_America", "France")] %>% 
+  .[, c("dateRep", "Germany", "Spain", "UK", "USA", "France")] %>% 
   na.omit()
 
 ylab <- c(2.5, 5.0, 7.5, 10, 12.5, 15)
@@ -21,9 +29,9 @@ covid_data_cum_dt %>%
   ggplot(aes(x = as.Date(dateRep, format="%d/%m/%Y"))) +
   geom_line(aes(y = Germany, color = "Germany"), size = 0.5, linetype = 1) +
   geom_line(aes(y = France, color = "France"), size = 0.5, linetype = 1) +
-  geom_line(aes(y = United_Kingdom, color = "UK"), size = 0.5, linetype = 1)  +
+  geom_line(aes(y = UK, color = "UK"), size = 0.5, linetype = 1)  +
   geom_line(aes(y = Spain, color = "Spain"), size = 0.5, linetype = 1) +
-  geom_line(aes(y = United_States_of_America, color = "USA"), size = 0.5, linetype = 1) +
+  geom_line(aes(y = USA, color = "USA"), size = 0.5, linetype = 1) +
   scale_y_continuous(labels = paste0(ylab, "M"),
                      breaks = 10^6 * ylab) +
   scale_x_date(date_breaks = "1 month", 
@@ -50,3 +58,32 @@ covid_data_cum_dt %>%
        color = "")
 
 # Challenge 6 ----
+
+
+world <- map_data("world")
+
+covid_data_deaths_tbl <- covid_data_tbl %>% 
+  group_by(countriesAndTerritories) %>%
+  summarise(mortality = sum(deaths/popData2019), .groups = 'keep') %>% 
+  merge(world, by.x = "countriesAndTerritories", by.y = "region") %>% 
+  rename(region = countriesAndTerritories)
+
+covid_data_deaths_tbl %>% ggplot() +
+  geom_map(aes(fill = mortality, x = long, y = lat, map_id = region), map = world, color = 'grey10') +
+  theme(
+    legend.background = element_rect(fill = "grey10"),
+    legend.text = element_text(color = 'white'),
+    legend.key = element_rect(fill = "grey10"),
+    panel.background = element_rect(fill = 'grey10'),
+    panel.grid.major = element_line(color = 'grey20', size = 0.5),
+    panel.grid.minor = element_line(color = 'grey30', size = 0.5), 
+    plot.background = element_rect(fill = 'grey10'),
+    text = element_text(color = 'white')
+  ) +
+  labs(title    = "Confirmed COVID-19 deaths relative to the size of the population",
+       subtitle = "More than 1.2 Million confirmed CCOVID-19 deaths worldwide",
+       x = "",
+       y = "",
+       color = "") + 
+  guides(fill = guide_colorbar()) +
+  scale_fill_continuous(name = "Mortality Rate", low = "#a81e1e", high = "black", labels = percent)

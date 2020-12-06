@@ -1,6 +1,5 @@
 library(tidyverse)
 library(data.table)
-library(tidyverse)
 library(ggplot2)
 library(scales)
 library(maps)
@@ -65,4 +64,26 @@ world <- map_data("world")
 
 covid_data_deaths_tbl <- covid_data_tbl %>% 
   group_by(countriesAndTerritories) %>%
-  summarise(total_deaths = sum(deaths), .groups = 'keep')
+  summarise(mortality = sum(deaths/popData2019), .groups = 'keep') %>% 
+  merge(world, by.x = "countriesAndTerritories", by.y = "region") %>% 
+  rename(region = countriesAndTerritories)
+
+covid_data_deaths_tbl %>% ggplot() +
+  geom_map(aes(fill = mortality, x = long, y = lat, map_id = region), map = world, color = 'grey10') +
+  theme(
+    legend.background = element_rect(fill = "grey10"),
+    legend.text = element_text(color = 'white'),
+    legend.key = element_rect(fill = "grey10"),
+    panel.background = element_rect(fill = 'grey10'),
+    panel.grid.major = element_line(color = 'grey20', size = 0.5),
+    panel.grid.minor = element_line(color = 'grey30', size = 0.5), 
+    plot.background = element_rect(fill = 'grey10'),
+    text = element_text(color = 'white')
+  ) +
+  labs(title    = "Confirmed COVID-19 deaths relative to the size of the population",
+       subtitle = "More than 1.2 Million confirmed CCOVID-19 deaths worldwide",
+       x = "",
+       y = "",
+       color = "") + 
+  guides(fill = guide_colorbar()) +
+  scale_fill_continuous(name = "Mortality Rate", low = "#a81e1e", high = "black", labels = percent)
