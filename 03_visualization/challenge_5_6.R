@@ -81,7 +81,7 @@ covid_data_deaths_tbl %>% ggplot() +
     text = element_text(color = 'white')
   ) +
   labs(title    = "Confirmed COVID-19 deaths relative to the size of the population",
-       subtitle = "More than 1.2 Million confirmed CCOVID-19 deaths worldwide",
+       subtitle = "More than 1.2 Million confirmed COVID-19 deaths worldwide",
        x = "",
        y = "",
        color = "") + 
